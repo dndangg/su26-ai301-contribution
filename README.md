@@ -1,8 +1,11 @@
 # Contribution #1: 	Allow users to specify the drag-and-drop button in the configuration
 
 **Contribution Number:** 1 
+
 **Student:** Dylan Dang
+
 **Issue:** https://github.com/miracle-wm-org/miracle-wm/issues/348
+
 **Status:** Phase I - In Progress
 
 ---
