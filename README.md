@@ -6,13 +6,13 @@
 
 **Issue:** https://github.com/miracle-wm-org/miracle-wm/issues/348
 
-**Status:** Phase I - In Progress
+**Status:** Phase II - In Progress
 
 ---
 
 ## Why I Chose This Issue
 
-[1-2 paragraphs explaining why this issue interests you, how it matches your skills/learning goals, what you hope to learn]
+I chose this issue because it is a focused feature in an area that affects real user interaction. It is a good opportunity for me to learn how Miracle WM routes mouse events, how configuration is parsed through and applied, and how changes in the configuration model can affect behavior. The scope seems manageable, and it's in a language that I want to gain more experience in for my future work.
 
 ---
 
@@ -20,19 +20,25 @@
 
 ### Problem Description
 
-[In your own words, what's broken or missing?]
+The drag and drop behavior does not allow users to choose which mouse button should start or end a drag. Instead, it reslies on the existing button handling. There is no dedicated configuration for this feature.
 
 ### Expected Behavior
 
-[What should happen?]
+Users should be able to configure one or more mouse buttons for drag and drop. Only the configured buttons should trigger dragging and stop the drag action.
 
 ### Current Behavior
 
-[What actually happens?]
+Drag and drop is handled without a dedicated button setting, so the feature cannot be restricted to a user selected mouse button.
 
 ### Affected Components
 
-[Which parts of the codebase are involved?]
+src/drag_and_drop_service.cpp for the drag start and stop logic
+
+src/policy.cpp for pointer routing into the service
+
+src/config.h and src/config.cpp for the configuration interface and filesystem config values
+
+miracle-wm-c/src/config-cpp.cpp for the YAML parsing of drag and drop settings
 
 ---
 
