@@ -46,19 +46,22 @@ miracle-wm-c/src/config-cpp.cpp for the YAML parsing of drag and drop settings
 
 ### Environment Setup
 
-[Notes on setting up your local development environment - challenges you faced, how you solved them]
+I had to set up a Linux virtual machine on my Mac because this project would not build natively on macOS. That was the first problem I ran into, since I originally started on my laptop and realized the build instructions depend on Linux only packages and tools. I ended up using an Ubuntu VM through Parallels, then followed the project’s build guide to install the required dependencies, clone the repository, and build the project in Debug mode with CMake.
+
+The biggest challenge was getting the environment ready before I could even test the issue. I ran into many missing package errors at first, so I went back to the documentation, installed the missing Linux and Mir dependencies, and rebuilt until everything worked. After that, I was able to run the compositor in the VM and start checking the drag and drop behavior.
 
 ### Steps to Reproduce
 
-1. [Step 1]
-2. [Step 2]
-3. [Observed result]
+1. Start MiracleWM in the Linux virtual machine with drag and drop enabled in the config.
+2. Try to begin dragging a container using the mouse button behavior described in the issue.
+
+You will note that the drag and drop behavior is tied to the primary button path, and there is no separate user configurable button option for it.
 
 ### Reproduction Evidence
 
 - **Commit showing reproduction:** [Link to commit in your fork]
 - **Screenshots/logs:** [If applicable]
-- **My findings:** [What you discovered during reproduction]
+- **My findings:** The issue comes from the fact that drag and drop is currently handled through the primary mouse button logic, while the configuration only exposes drag and drop enabling and modifiers. I confirmed that there is no separate setting yet for choosing which mouse button should start or stop dragging.
 
 ---
 
