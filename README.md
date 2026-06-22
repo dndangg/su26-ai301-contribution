@@ -69,30 +69,51 @@ You will note that the drag and drop behavior is tied to the primary button path
 
 ### Analysis
 
-[Your analysis of the root cause - what's causing the issue?]
+The drag-and-drop button is hardcoded and configurable. In drag_and_drop_service.cpp, both the start and stop of a drag key off config->get_primary_button():
+
+Start (on mir_pointer_action_button_down): if ((config->get_primary_button() & buttons) == 0) return false;
+Stop (on mir_pointer_action_button_up while dragging): if (action == mir_pointer_action_button_up && (config->get_primary_button() & buttons) == 0)
+get_primary_button() returns the global options.primary_button (default mir_pointer_button_primary), which isn't parsed from YAML. So the root cause is that no feature button setting is placed into the drag_and_drop config section. The service has nowhere to read a user preference from.
 
 ### Proposed Solution
 
-[High-level description of your fix approach]
+Add a single button to the existing drag_and_drop configuration section (press-to-start / release-to-drop, configurable). Default it to mir_pointer_button_primary so existing behavior is unchanged. Thread it through the established config pipeline that enabled/modifiers already use, then have the drag service read config->drag_and_drop().button instead of get_primary_button().
 
 ### Implementation Plan
 
 Using UMPIRE framework (adapted):
 
-**Understand:** [Restate the problem]
+**Understand:** Users currently cannot choose which mouse button initiates/terminates a window drag. It's always the primary button. We want a config option, like
+drag_and_drop: button: secondary   # left/primary (default), right/secondary, middle/tertiary, back, forward, side, extra, task
 
-**Match:** [What similar patterns/solutions exist in the codebase?]
+**Match:** existing patterns this mirrors exactly:
 
-**Plan:** [Step-by-step implementation plan]
-1. [Modify file X to do Y]
-2. [Add function Z]
-3. [Update tests]
+DragAndDropConfiguration already carries enabled + modifiers end-to-end (config-cpp.h:87) — button is a third field on the same struct.
+try_parse_modifiers is the template for a string→bitmask parser; I'll add an analogous try_parse_button mapping names → mir_pointer_button_* (enums.h:200-207: primary, secondary, tertiary, back, forward, side, extra, task).
+The C ABI struct miracle_drag_and_drop_config_t (config.h:974) and its get/set (config-c.cpp:1008) already mirror the C++ struct field-for-field.
+Whole-struct merge (config-cpp.cpp:~1986) and plugin-config copy (~1401) pass drag_and_drop by value, so the new field propagates with no change.
 
-**Implement:** [Link to your branch/commits as you work]
+**Plan:**
 
-**Review:** [Self-review checklist - does it follow the project's contribution guidelines?]
+config-cpp.h — add uint button = mir_pointer_button_primary; to DragAndDropConfiguration.
+config-cpp.cpp — add try_parse_button(string) -> std::optional<uint> (aliases: left=primary, right=secondary, middle=tertiary, plus the rest); in read_drag_and_drop (line 950) parse the optional button key; in the serializer (~1673) emit button when non-default.
+config.h / config-c.cpp — add unsigned int button; to miracle_drag_and_drop_config_t and wire it into get/set.
+src/drag_and_drop_service.cpp — replace both config->get_primary_button() calls with config->drag_and_drop().button. (get_primary_button() stays for its other callers.)
+Tests — extend DragAndDropAllValues in test_filesystem_configuration.cpp:487; add default / valid-parse / invalid-name / C-API round-trip cases in miracle-wm-c/tests/test_config_cpp.cpp and test_config_c.cpp.
+Docs — add drag_and_drop.button (with allowed values) to the config reference under docs/.
 
-**Evaluate:** [How will you verify it works?]
+**Implement:** 
+
+**Review:** self-checklist:
+
+ Default value preserves current behavior (no breaking change for existing configs).
+ Invalid button name produces a config error via the existing create_error path, not a crash.
+ C ABI struct + getters/setters kept in sync with the C++ struct.
+ Config round-trips (parse → serialize → re-parse) without drift.
+ New button key is documented.
+
+**Evaluate:** sudo apt install -y libgtest-dev libgmock-dev, reconfigure with -DENABLE_TESTS=ON, run the config suite (parse, default, invalid, round-trip, C-API).
+Manual (nested): set button: secondary in ~/.config/miracle-wm/config.yaml, launch WAYLAND_DISPLAY=wayland-99 miracle-wm, and confirm a right-click drag (with the configured modifier) moves a window while left-click does not — then flip back to default and confirm left-click drag still works
 
 ---
 
