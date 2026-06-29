@@ -59,7 +59,7 @@ You will note that the drag and drop behavior is tied to the primary button path
 
 ### Reproduction Evidence
 
-- **Commit showing reproduction:** [Link to commit in your fork]
+- **Commit showing reproduction:** https://github.com/dndangg/miracle-wm/tree/feature/348-configurable-dnd-button
 - **Screenshots/logs:** [If applicable]
 - **My findings:** The issue comes from the fact that drag and drop is currently handled through the primary mouse button logic, while the configuration only exposes drag and drop enabling and modifiers. I confirmed that there is no separate setting yet for choosing which mouse button should start or stop dragging.
 
