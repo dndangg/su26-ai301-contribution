@@ -6,7 +6,7 @@
 
 **Issue:** https://github.com/miracle-wm-org/miracle-wm/issues/348
 
-**Status:** Phase II - In Progress
+**Status:** Phase III - In Progress
 
 ---
 
@@ -121,38 +121,68 @@ Manual (nested): set button: secondary in ~/.config/miracle-wm/config.yaml, laun
 
 ### Unit Tests
 
-- [ ] Test case 1: [Description]
-- [ ] Test case 2: [Description]
-- [ ] Test case 3: [Description]
+- [x] **Test case 1 — `DragAndDropAllValues` (extended):** Parses `button: secondary` from YAML and asserts `config.drag_and_drop().button == mir_pointer_button_secondary` (alongside the existing `enabled`/`modifiers` checks). Covers the happy path through `FilesystemConfiguration`.
+- [x] **Test case 2 — `DragAndDropMissingButton` (new):** Config omits `button`; asserts it defaults to `mir_pointer_button_primary`. Guards backward compatibility — existing configs behave exactly as before.
+- [x] **Test case 3 — `DragAndDropButtonAlias` (new):** Parses `button: middle` and asserts it resolves to `mir_pointer_button_tertiary`. Confirms friendly aliases (`left`/`right`/`middle`) work, not just canonical Mir names.
+- [x] **Test case 4 — `DragAndDropInvalidButtonFallsBackToDefault` (new):** Parses `button: not_a_button`; asserts it falls back to `primary` instead of crashing. Confirms the invalid-input path is safe.
+
+> Status: all four are written and committed to the test suites. Suite has **not been executed yet** (test build OOM-killed on the VM — pending a low-parallelism rebuild).
 
 ### Integration Tests
 
-- [ ] Integration scenario 1
-- [ ] Integration scenario 2
+- [x] **Scenario 1 — C-ABI round trip (`test_config_c.cpp::DragAndDropConfig`):** Sets `button = secondary` via `miracle_config_set_drag_and_drop`, reads it back via `miracle_config_get_drag_and_drop`, asserts equality. Confirms the field is wired through the public C struct used by plugins.
+- [x] **Scenario 2 — Config merge + parse/serialize round trip:** Asserts a merged (layered) config carries the overriding `button`, and the serializer emits `button` only when non-default so a written-back config doesn't drift. Confirms the value survives merging and persistence.
+
+> Status: written/committed; execution pending with the unit suite above.
 
 ### Manual Testing
 
-[What you tested manually and results]
+- [ ] **Pending.** Plan: set `drag_and_drop: { button: secondary }` in `~/.config/miracle-wm/config.yaml`, launch nested via `WAYLAND_DISPLAY=wayland-99 miracle-wm`, and confirm a **right-click + modifier** drag moves a window while **left-click** does not — then revert to default and confirm left-click drag still works. Blocked on getting the test/compositor build through (OOM during test-binary link).
+
+**Verified to date:** main (non-test) build compiles and links cleanly; `clang-format` reports no changes (diff already conformant to `.clang-format`).
 
 ---
 
 ## Implementation Notes
 
-### Week [X] Progress
+### Week 1 Progress — Environment & Planning
 
-[What you built this week, challenges faced, decisions made]
+Built miracle-wm from source on an arm64 Parallels VM (no arm64 release on the PPA or stable snap). Worked through several environment blockers: a stale `libmirrenderer-dev` in the PPA (its headers moved into `libmirplatform-dev` in Mir 2.28), a WasmEdge 0.13-vs-0.14 API gap (disabled the plugin system to build), missing graphics drivers (`gbm-kms`/`wayland`), an `ldconfig` cache miss, and a nested `wayland-0` socket collision. Outcome: a working local compositor plus a `compile_commands.json`-backed IntelliSense setup.
 
-### Week [Y] Progress
+Then analyzed issue #348 with the UMPIRE framework: traced that the drag button is hardcoded to `config->get_primary_button()` in `drag_and_drop_service.cpp`, and that a `drag_and_drop` config section (`enabled` + `modifiers`) already exists end-to-end. **Key decision:** a single configurable `button` (press-to-start / release-to-drop) rather than separate start/terminate buttons — preserves the existing hold-to-drag model and keeps config minimal.
 
-[Continue documenting as you work]
+### Week 2 Progress — Implementation
+
+Implemented the feature by threading one `button` field through the entire existing config pipeline (struct → YAML parse → serialize → C ABI → compositor), reusing the `modifiers` machinery as a template. Challenges/decisions:
+
+- Created a dedicated `buttons.h` name→enum map (mirroring `modifiers.h`) so the C++ parser and C-ABI layer share one source of truth.
+- Added friendly aliases (`left`/`right`/`middle`) on top of Mir's canonical names for usability.
+- Defaulted to `mir_pointer_button_primary` so the change is fully backward-compatible; serializer omits the key unless changed.
+- Added 4 unit + 2 integration test cases and updated the config docs.
+- **Open item:** test-binary build was OOM-killed; needs a low-parallelism build (`-j 2`) or more VM RAM before the suite runs and manual testing can proceed.
 
 ### Code Changes
 
-- **Files modified:** [List]
-- **Key commits:** [Links to important commits]
-- **Approach decisions:** [Why you chose certain approaches]
+- **Files modified:**
+  - `miracle-wm-c/include/miracle/cpp/buttons.h` *(new)* — button name→`mir_pointer_button_*` map (incl. aliases)
+  - `miracle-wm-c/include/miracle/cpp/config-cpp.h` — `button` field on `DragAndDropConfiguration` + include
+  - `miracle-wm-c/src/config-cpp.cpp` — `try_parse_button` helper, parse in `read_drag_and_drop`, conditional serialize
+  - `miracle-wm-c/include/miracle/config.h` — `button` field on C struct `miracle_drag_and_drop_config_t`
+  - `miracle-wm-c/src/config-c.cpp` — wired `button` into the C get/set functions
+  - `src/drag_and_drop_service.cpp` — use `config->drag_and_drop().button` for start and stop checks
+  - `tests/test_filesystem_configuration.cpp` — 1 extended + 3 new test cases
+  - `miracle-wm-c/tests/test_config_c.cpp` — C-ABI round-trip coverage
+  - `miracle-wm-c/tests/test_config_cpp.cpp` — config merge coverage
+  - `wiki/docs/configuration/drag_and_drop.md` — documented `button` (valid values, example, schema, default)
+  - *(~105 insertions across 9 tracked files + 1 new header)*
+- **Key commits:** _not yet committed — changes staged on branch `feature/348-configurable-dnd-button`; add commit/PR links here after committing._
+- **Approach decisions:**
+  - **Single button, not start+terminate** — preserves the hold/release model; smaller config surface.
+  - **Reuse over reinvention** — followed the proven `enabled`/`modifiers` path, including the whole-struct merge (no merge-logic changes needed).
+  - **Backward compatible by construction** — default preserves current behavior; key omitted from serialized output unless changed.
 
 ---
+
 
 ## Pull Request
 
