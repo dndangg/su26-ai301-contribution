@@ -202,20 +202,35 @@ Implemented the feature by threading one `button` field through the entire exist
 
 ### Technical Skills Gained
 
-[What you learned technically]
+- **Building a Wayland compositor from source.** Learned the CMake/Ninja toolchain for a large C++23 project, how feature flags (`-DFEATURE_PLUGIN_SYSTEM`, `-DBUILD_ERROR_REPORTER`, `-DENABLE_TESTS`) shape a build, and how to install a compositor system-wide alongside its Wayland session file.
+- **How Mir/miracle-wm is layered.** Saw how the compositor selects graphics *platforms* at runtime (`gbm-kms`, `wayland`, `x11`, `stub`) and how a nested session differs from a real KMS session on a VT — including why an empty environment vs. an inherited `WAYLAND_DISPLAY` changes behavior.
+- **Reading a real config pipeline end-to-end.** Traced a single option (`drag_and_drop`) through its C++ struct, YAML parser, serializer, a C-ABI bridge (`miracle-wm-c`), config merging, and the consuming service — and learned to *extend an existing pattern* rather than invent a new one.
+- **Debian/apt internals.** Reading `Packages` lists directly, diagnosing version-pinned dependency conflicts, and understanding architecture-specific PPA gaps (arm64 vs amd64).
+- **Tooling:** `compile_commands.json` + `c_cpp_properties.json` for IDE IntelliSense, `clang-format`, and GoogleTest/GoogleMock test structure.
 
 ### Challenges Overcome
 
-[What was hard and how you solved it]
+- **No arm64 release.** The snap (edge-only) and the miracle-wm PPA (amd64-only) both failed on the arm64 VM, so I built from source instead.
+- **Stale `libmirrenderer-dev` in the PPA.** It was pinned to Mir 2.23 while the rest of the stack was 2.28, making the set uninstallable. Discovered the renderer headers had moved into `libmirplatform-dev` in 2.28, so I dropped the obsolete package.
+- **WasmEdge API mismatch.** The plugin code used `WasmEdge_ValTypeGenI32()` (0.14+) but the archive only had 0.13.5. Disabled the plugin system to get a working build.
+- **Blank gray screen after login.** Diagnosed it as a *working* compositor with no windows — the default terminal (`gnome-terminal`) doesn't launch reliably outside GNOME. Fixed by installing `foot` and setting it in the config.
+- **A chain of runtime failures:** missing shared lib (`ldconfig`), missing graphics drivers (`gbm-kms`/`wayland`), and a nested `wayland-0` socket collision (fixed with `WAYLAND_DISPLAY=wayland-99`).
+- **OOM during the test build** — traced exit code 137 to the VM running out of memory when linking test binaries in parallel; the fix is a low-parallelism build.
 
 ### What I'd Do Differently Next Time
 
-[Reflection on your process]
+- **Read the logs first, guess later.** Several issues (stub graphics, socket lock, missing lib) were obvious once I ran the compositor directly and captured stderr — I'd go straight to that instead of reasoning from symptoms.
+- **Confirm the platform/architecture up front.** Knowing it was arm64 immediately would have pointed me at "build from source" before trying the snap and PPA.
+- **Build with tests enabled from the start** so the test suite is always runnable, and cap build parallelism on a memory-limited VM to avoid the OOM detour.
+- **Verify manually before writing the reflection** — I documented the implementation before the test suite and manual drag test could run; next time I'd sequence verification earlier.
 
 ---
 
 ## Resources Used
 
-- [Link to helpful documentation]
-- [Tutorial or Stack Overflow post that helped]
-- [GitHub issues or discussions that helped]
+- [miracle-wm wiki](https://wiki.miracle-wm.org/) — build and configuration docs, including the `drag_and_drop` config reference.
+- [Mir on Launchpad — `ppa:mir-team/release`](https://launchpad.net/~mir-team/+archive/ubuntu/release) — the Mir 2.28 dev packages for arm64.
+- [GitHub issue #348](https://github.com/miracle-wm-org/miracle-wm/issues/348) — the feature request itself ("good first issue").
+- The miracle-wm source as its own best reference — the existing `modifiers` config path (`modifiers.h`, `read_drag_and_drop`, `try_parse_modifier`) was the template for the new `button` option.
+- Mir's `MirPointerButton` enum (`/usr/include/mircore/mir_toolkit/events/enums.h`) — the canonical button values and bitmask semantics.
+- [foot terminal](https://codeberg.org/dnkl/foot) — lightweight Wayland-native terminal used to get a usable session outside GNOME.
