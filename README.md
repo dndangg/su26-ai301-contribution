@@ -52,16 +52,34 @@ The biggest challenge was getting the environment ready before I could even test
 
 ### Steps to Reproduce
 
-1. Start MiracleWM in the Linux virtual machine with drag and drop enabled in the config.
-2. Try to begin dragging a container using the mouse button behavior described in the issue.
+1) Create or switch to a working branch in the student’s fork named after the issue, for example fix-issue-348.
+2) Install the project dependencies using the documented local setup steps.
+3) Start the app or the relevant build/test environment.
+4) Open the drag-and-drop configuration surface and set a mouse button that should be allowed to trigger drag-and-drop.
+5) Trigger drag-and-drop with a different mouse button than the configured one.
+6) Observe that drag-and-drop still starts or stops even though the button should not be accepted.
 
-You will note that the drag and drop behavior is tied to the primary button path, and there is no separate user configurable button option for it.
+## Investigation Plan
+
+Understand: trace how drag-and-drop settings are defined and how pointer events are processed in src/drag_and_drop_service.cpp.
+
+Match: use the existing mouse-button option plumbing in miracle-wm-c/src/config-c.cpp and miracle-wm-c/include/miracle/cpp/mouse_button.h as the closest analogous pattern.
+
+Plan: update the drag-and-drop config model and the pointer-event gate so the configured button set is enforced instead of accepting any mouse button.
+
+Review: compare the current behavior against the documented schema in wiki/docs/configuration/drag_and_drop.md and the existing tests in tests/test_drag_and_drop_service.cpp.
+
+Evaluate: verify that allowed buttons trigger drag-and-drop, disallowed buttons do not, and edge cases like default config and multiple allowed buttons behave correctly.
+
+Root Cause
+
+The root cause is that the drag-and-drop event path is not aligned with the configuration surface. The service in src/drag_and_drop_service.cpp can filter pointer events, but the config currently does not expose a matching mouse-button allowlist in the same way the modifier logic does.
 
 ### Reproduction Evidence
 
 - **Commit showing reproduction:** https://github.com/dndangg/miracle-wm/tree/feature/348-configurable-dnd-button
-- **Screenshots/logs:** [If applicable]
-- **My findings:** The issue comes from the fact that drag and drop is currently handled through the primary mouse button logic, while the configuration only exposes drag and drop enabling and modifiers. I confirmed that there is no separate setting yet for choosing which mouse button should start or stop dragging.
+- **Screenshots/logs:**
+- **My findings:** the issue appears to come from a mismatch between the config shape and the event filter. The service currently checks drag-and-drop behavior in src/drag_and_drop_service.cpp, but the config surface still centers on miracle-wm-c/include/miracle/config.h and miracle-wm-c/src/config-c.cpp, so the button allowlist is not being enforced where the pointer event is handled.
 
 ---
 
